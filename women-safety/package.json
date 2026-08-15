@@ -7,8 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "vite build",
+    "deploy": "gh-pages -d dist"
   },
+  "homepage": "https://suhanimaurya05.github.io/women-safety/",
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.31.0",
@@ -24,6 +27,7 @@
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
+    "gh-pages": "^6.3.0",
     "globals": "^17.7.0",
     "vite": "^8.2.0"
   }

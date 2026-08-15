@@ -11,6 +11,7 @@ import {
   MapPinned,
   Menu,
   Moon,
+  MoreVertical,
   Navigation,
   Phone,
   Plus,
@@ -57,9 +58,26 @@ const safeRouteOptions = [
 
 const fakeCallers = ['Mom', 'Dad', 'Friend', 'Custom']
 const incidentOptions = ['Harassment', 'Suspicious activity', 'Unsafe area', 'Stalking', 'Other']
+const statusOptions = ['Safe', 'At Risk', 'Emergency']
+const emergencyPhoneNumber = '112'
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('safex-auth') || '{}')
+      return Boolean(stored?.isLoggedIn)
+    } catch {
+      return false
+    }
+  })
+  const [userProfile, setUserProfile] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('safex-auth') || '{}')
+      return stored?.name || stored?.email ? ({ name: stored.name || 'Sara Kaur', email: stored.email || 'sara@safex.app' }) : { name: 'Sara Kaur', email: 'sara@safex.app' }
+    } catch {
+      return { name: 'Sara Kaur', email: 'sara@safex.app' }
+    }
+  })
   const [authMode, setAuthMode] = useState('login')
   const [currentView, setCurrentView] = useState('dashboard')
   const [showPassword, setShowPassword] = useState(false)
@@ -79,6 +97,11 @@ function App() {
   const [fakeCallDelay, setFakeCallDelay] = useState('3 sec')
   const [fakeCallActive, setFakeCallActive] = useState(false)
   const [channelStatus, setChannelStatus] = useState('Incoming call')
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [userStatus, setUserStatus] = useState('Safe')
 
   useEffect(() => {
     if (sosState !== 'countdown') return undefined
@@ -97,12 +120,64 @@ function App() {
     return () => clearTimeout(timer)
   }, [sosState, sosCountdown])
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('header')) {
+        setShowNotifications(false)
+        setShowProfileMenu(false)
+        setShowStatusMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(
+      'safex-auth',
+      JSON.stringify({
+        isLoggedIn,
+        name: userProfile.name,
+        email: userProfile.email,
+      }),
+    )
+  }, [isLoggedIn, userProfile])
+
   const filteredHelp = useMemo(() => {
     if (helpFilter === 'All') return nearbyHelp
     return nearbyHelp.filter((item) => item.type === helpFilter)
   }, [helpFilter])
 
   const activeContacts = contacts.filter((contact) => selectedContactIds.includes(contact.id))
+
+  const triggerPhoneCall = (phoneNumber, label = 'Emergency service') => {
+    const sanitized = String(phoneNumber || '').replace(/[^\d+]/g, '')
+    const finalNumber = sanitized || emergencyPhoneNumber
+    const telUrl = `tel:${finalNumber}`
+
+    if (typeof window !== 'undefined') {
+      try {
+        const anchor = document.createElement('a')
+        anchor.href = telUrl
+        anchor.style.display = 'none'
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+      } catch {
+        window.location.href = telUrl
+      }
+    }
+
+    return `${label}: ${finalNumber}`
+  }
+
+  const handleStatusCycle = () => {
+    const currentIndex = statusOptions.indexOf(userStatus)
+    const nextStatus = statusOptions[(currentIndex + 1) % statusOptions.length]
+    setUserStatus(nextStatus)
+    setShowStatusMenu(false)
+  }
 
   const handleSosPressStart = () => {
     if (sosState === 'active') return
@@ -119,12 +194,29 @@ function App() {
 
   const handleSafeLogin = (event) => {
     event.preventDefault()
+    const emailInput = event.currentTarget.querySelector('input[type="text"], input[type="email"]')
+    const passwordInput = event.currentTarget.querySelector('input[type="password"]')
+    const nextEmail = emailInput?.value || 'sara@safex.app'
+    const nextName = nextEmail.includes('@') ? nextEmail.split('@')[0].replace(/[._-]/g, ' ') : 'Sara Kaur'
+
+    setUserProfile({ name: nextName.charAt(0).toUpperCase() + nextName.slice(1), email: nextEmail })
     setIsLoggedIn(true)
     setCurrentView('dashboard')
+    if (passwordInput) {
+      passwordInput.value = ''
+    }
   }
 
   const handleSignUp = (event) => {
     event.preventDefault()
+    const nameInput = event.currentTarget.querySelector('input[type="text"]')
+    const emailInput = event.currentTarget.querySelector('input[type="email"]')
+    if (nameInput) {
+      setUserProfile((current) => ({ ...current, name: nameInput.value || current.name }))
+    }
+    if (emailInput) {
+      setUserProfile((current) => ({ ...current, email: emailInput.value || current.email }))
+    }
     setAuthMode('onboarding')
   }
 
@@ -186,7 +278,7 @@ function App() {
             <div className="mb-8 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600">Setup</p>
-                <h2 className="mt-2 text-3xl font-bold text-slate-900">Welcome to SafeCircle</h2>
+                <h2 className="mt-2 text-3xl font-bold text-slate-900">Welcome to SafeX</h2>
               </div>
               <div className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700">Step 3 of 3</div>
             </div>
@@ -227,7 +319,7 @@ function App() {
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-xl font-semibold">SafeCircle</p>
+                  <p className="text-xl font-semibold">SafeX</p>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Women Safety</p>
                 </div>
               </div>
@@ -266,7 +358,7 @@ function App() {
                     <ShieldCheck className="h-6 w-6" />
                   </div>
                   <div>
-                    <p className="text-xl font-semibold text-slate-900">SafeCircle</p>
+                    <p className="text-xl font-semibold text-slate-900">SafeX</p>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Women Safety</p>
                   </div>
                 </div>
@@ -290,7 +382,7 @@ function App() {
 
                   <label className="block text-sm font-medium text-slate-700">
                     Email or phone number
-                    <input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100" type="text" placeholder="you@example.com" defaultValue="sara@safecircle.app" />
+                    <input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100" type="text" placeholder="you@example.com" defaultValue="sara@safex.app" />
                   </label>
 
                   <label className="block text-sm font-medium text-slate-700">
@@ -332,7 +424,7 @@ function App() {
                     </label>
                     <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
                       Email
-                      <input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100" type="email" placeholder="you@example.com" defaultValue="sara@safecircle.app" />
+                      <input className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100" type="email" placeholder="you@example.com" defaultValue="sara@safex.app" />
                     </label>
                     <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
                       Phone number
@@ -383,45 +475,261 @@ function App() {
   }
 
   const renderTopBar = () => (
-    <header className="safe-card sticky top-0 z-20 mb-6 flex items-center justify-between rounded-[28px] px-4 py-3 sm:px-5">
+    <header className="safe-card sticky top-0 z-30 mb-6 flex items-center justify-between rounded-[28px] px-4 py-3 sm:px-5">
       <div className="flex items-center gap-3">
-        <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 md:hidden" aria-label="Open navigation">
+        <button
+          type="button"
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 md:hidden"
+          aria-label="Open navigation"
+        >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setCurrentView('dashboard')}
+          className="flex items-center gap-3 rounded-2xl transition hover:bg-slate-50"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
             <ShieldCheck className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-slate-900">SafeCircle</p>
+            <p className="text-lg font-semibold text-slate-900">SafeX</p>
             <p className="text-[11px] uppercase tracking-[0.23em] text-slate-500">Live safety</p>
           </div>
-        </div>
+        </button>
       </div>
 
-      <div className="hidden items-center gap-2 rounded-full bg-slate-100 p-1 md:flex">
-        <button type="button" className="rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm">Safe</button>
-        <button type="button" className="rounded-full px-3 py-1.5 text-sm font-medium text-slate-500">Status</button>
+      <div className="relative hidden items-center gap-2 rounded-full bg-slate-100 p-1 md:flex">
+        <button
+          type="button"
+          onClick={handleStatusCycle}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            userStatus === 'Safe' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          {userStatus}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowStatusMenu(!showStatusMenu)}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            userStatus !== 'Safe' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          Status
+        </button>
+        
+        {showStatusMenu && (
+          <div className="absolute top-full left-0 mt-2 w-40 rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setUserStatus('Safe')
+                setShowStatusMenu(false)
+              }}
+              className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-t-2xl border-b border-slate-100"
+            >
+              ✓ Safe
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUserStatus('At Risk')
+                setShowStatusMenu(false)
+              }}
+              className="w-full px-4 py-2.5 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 border-b border-slate-100"
+            >
+              ⚠ At Risk
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUserStatus('Emergency')
+                setShowStatusMenu(false)
+              }}
+              className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-700 hover:bg-rose-50 rounded-b-2xl"
+            >
+              🚨 Emergency
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <button type="button" className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-slate-200" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
-        </button>
-        <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-slate-200" aria-label="Settings">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+            aria-label="Notifications"
+          >
+            <Bell className="h-5 w-5" />
+            <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-rose-500" />
+          </button>
+          
+          {showNotifications && (
+            <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-100">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <p className="font-semibold text-slate-900">Notifications</p>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer">
+                  <p className="text-sm font-medium text-slate-900">Location permission enabled</p>
+                  <p className="text-xs text-slate-500 mt-1">2 minutes ago</p>
+                </div>
+                <div className="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer">
+                  <p className="text-sm font-medium text-slate-900">Emergency contacts updated</p>
+                  <p className="text-xs text-slate-500 mt-1">1 hour ago</p>
+                </div>
+                <div className="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                  <p className="text-sm font-medium text-slate-900">App security check passed</p>
+                  <p className="text-xs text-slate-500 mt-1">Today at 8:00 AM</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCurrentView('settings')}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+          aria-label="Settings"
+        >
           <Shield className="h-5 w-5" />
         </button>
-        <button type="button" onClick={() => setCurrentView('settings')} className="flex items-center gap-2 rounded-2xl bg-slate-900 px-3 py-2.5 text-sm font-medium text-white shadow-sm sm:px-4">
-          <UserRound className="h-4 w-4" />
-          <span className="hidden sm:inline">Sara</span>
-        </button>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="flex items-center gap-2 rounded-2xl bg-slate-900 px-3 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:px-4"
+          >
+            <UserRound className="h-4 w-4" />
+            <span className="hidden sm:inline">{userProfile.name.split(' ')[0] || 'Sara'}</span>
+          </button>
+
+          {showProfileMenu && (
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-100">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <p className="font-semibold text-slate-900">{userProfile.name}</p>
+                <p className="text-xs text-slate-500">{userProfile.email}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentView('settings')
+                  setShowProfileMenu(false)
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+              >
+                Account Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false)
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+              >
+                Emergency Contacts
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false)
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 border-b border-slate-100"
+              >
+                Privacy & Security
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoggedIn(false)
+                  setShowProfileMenu(false)
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-b-2xl"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {showMobileMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
+            onClick={() => setShowMobileMenu(false)}
+          />
+          <nav className="fixed left-0 top-0 z-50 h-screen w-64 overflow-y-auto rounded-r-3xl border-r border-slate-200 bg-white px-4 py-6 shadow-xl md:hidden">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">SafeX</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Safety app</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentView(item.id)
+                    setShowMobileMenu(false)
+                  }}
+                  className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                    currentView === item.id
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <div className="flex items-center gap-2 text-rose-700 font-semibold mb-2">
+                <Siren className="h-4 w-4" />
+                Emergency SOS
+              </div>
+              <p className="text-xs text-rose-600">Hold the SOS button on dashboard for 3 seconds to activate emergency mode</p>
+            </div>
+          </nav>
+        </>
+      )}
     </header>
   )
 
   const renderDashboard = () => (
     <div className="space-y-6">
+      {sosState === 'active' && (
+        <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-r from-rose-50 to-red-50 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-600 text-white">
+                <Siren className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-rose-900">SOS Active — location is being shared</p>
+                <p className="text-sm text-rose-700">Contacts notified • Live location sharing on</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setSosState('safe')} className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700">
+              End
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="safe-card rounded-[30px] p-4 sm:p-6">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
@@ -467,7 +775,13 @@ function App() {
 
               {sosState === 'active' && (
                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
-                  <button type="button" className="rounded-xl bg-white px-4 py-2.5 font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Call emergency services</button>
+                  <button
+                type="button"
+                onClick={() => triggerPhoneCall(emergencyPhoneNumber, 'Emergency services')}
+                className="rounded-xl bg-white px-4 py-2.5 font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+              >
+                Call emergency services
+              </button>
                   <button type="button" onClick={() => setSosState('safe')} className="rounded-xl bg-slate-900 px-4 py-2.5 font-medium text-white hover:bg-slate-800">End SOS</button>
                 </div>
               )}
@@ -514,31 +828,60 @@ function App() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="safe-card rounded-3xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500">Safe route</p>
-            <MapPinned className="h-5 w-5 text-indigo-600" />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <button type="button" onClick={() => setCurrentView('contacts')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-indigo-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 mb-3">
+            <Users className="h-5 w-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">7.6 km</p>
-          <p className="mt-1 text-sm text-slate-600">Safer route available</p>
-        </div>
-        <div className="safe-card rounded-3xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500">Trusted contacts</p>
-            <User className="h-5 w-5 text-emerald-600" />
+          <p className="text-sm font-medium text-slate-500">Emergency Contacts</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{activeContacts.length}</p>
+          <p className="mt-1 text-xs text-slate-600">contacts linked</p>
+        </button>
+        
+        <button type="button" onClick={() => setCurrentView('location')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-emerald-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 mb-3">
+            <Navigation className="h-5 w-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">{contacts.length}</p>
-          <p className="mt-1 text-sm text-slate-600">Contacts ready to receive alerts</p>
-        </div>
-        <div className="safe-card rounded-3xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500">Nearby help</p>
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          <p className="text-sm font-medium text-slate-500">Live Location</p>
+          <p className="mt-2 text-xs font-semibold text-emerald-600">Share where you are</p>
+          <p className="mt-1 text-xs text-slate-600">with trusted contacts</p>
+        </button>
+        
+        <button type="button" onClick={() => setCurrentView('help')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-amber-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600 mb-3">
+            <AlertTriangle className="h-5 w-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-900">3</p>
-          <p className="mt-1 text-sm text-slate-600">Services detected nearby</p>
-        </div>
+          <p className="text-sm font-medium text-slate-500">Nearby Help</p>
+          <p className="mt-2 text-xs font-semibold text-amber-600">Police & hospitals</p>
+          <p className="mt-1 text-xs text-slate-600">3 services nearby</p>
+        </button>
+        
+        <button type="button" onClick={() => setCurrentView('route')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-cyan-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100 text-cyan-600 mb-3">
+            <MapPinned className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-slate-500">Safe Route</p>
+          <p className="mt-2 text-xs font-semibold text-cyan-600">Plan your journey</p>
+          <p className="mt-1 text-xs text-slate-600">7.6 km available</p>
+        </button>
+        
+        <button type="button" onClick={() => setCurrentView('fake-call')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-purple-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 mb-3">
+            <Phone className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-slate-500">Fake Call</p>
+          <p className="mt-2 text-xs font-semibold text-purple-600">Exit a situation</p>
+          <p className="mt-1 text-xs text-slate-600">Create a fake call instantly</p>
+        </button>
+        
+        <button type="button" onClick={() => setCurrentView('incident')} className="safe-card rounded-2xl p-4 text-left transition hover:shadow-lg hover:border-rose-300">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-100 text-rose-600 mb-3">
+            <ShieldAlert className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-slate-500">Report Incident</p>
+          <p className="mt-2 text-xs font-semibold text-rose-600">Document safety concerns</p>
+          <p className="mt-1 text-xs text-slate-600">Private and confidential</p>
+        </button>
       </div>
     </div>
   )
@@ -608,7 +951,11 @@ function App() {
               <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{contact.phone}</div>
 
               <div className="mt-5 flex gap-2">
-                <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 font-medium text-white hover:bg-emerald-500">
+                <button
+                  type="button"
+                  onClick={() => triggerPhoneCall(contact.phone, contact.name)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 font-medium text-white hover:bg-emerald-500 transition"
+                >
                   <Phone className="h-4 w-4" /> Call
                 </button>
                 <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 font-medium text-slate-700 hover:bg-slate-50">
@@ -724,10 +1071,20 @@ function App() {
                 </div>
                 <p className="mt-3 text-sm text-slate-600">{item.address}</p>
                 <div className="mt-4 flex gap-2">
-                  <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-3 font-medium text-white hover:bg-indigo-500">
+                  <button
+                    type="button"
+                    onClick={() => triggerPhoneCall(item.phone || emergencyPhoneNumber, item.name)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-3 font-medium text-white hover:bg-indigo-500 transition"
+                  >
                     <Phone className="h-4 w-4" /> Call
                   </button>
-                  <button type="button" className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 font-medium text-slate-700 hover:bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert(`🗺️ Opening directions to ${item.name}...\nAddress: ${item.address}`)
+                    }}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 font-medium text-slate-700 hover:bg-slate-50 transition"
+                  >
                     <Navigation className="h-4 w-4" /> Directions
                   </button>
                 </div>
@@ -844,25 +1201,44 @@ function App() {
           </button>
         </div>
       ) : (
-        <div className="safe-card overflow-hidden rounded-[32px] bg-slate-950 text-white shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">{fakeCallName.slice(0, 1)}</div>
-              <div>
-                <p className="text-lg font-semibold">{fakeCallName}</p>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-300">{channelStatus}</p>
-              </div>
+        <div className="safe-card overflow-hidden rounded-[32px] bg-[#10141d] text-white shadow-[0_40px_90px_rgba(15,23,42,0.42)] ring-1 ring-slate-700">
+          <div className="flex items-center justify-between bg-[#0b0f15] px-4 py-2.5 text-[10px] text-slate-300 sm:px-5">
+            <div className="flex items-center gap-2">
+              <span>9:41</span>
+              <span className="text-slate-500">•</span>
+              <span>5G</span>
             </div>
-            <button type="button" onClick={handleFakeCallEnd} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white">Decline</button>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              <span className="h-2 w-2 rounded-full bg-rose-400" />
+            </div>
           </div>
 
-          <div className="flex min-h-[420px] flex-col items-center justify-center px-6 py-8 text-center">
-            <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 text-4xl shadow-lg shadow-slate-900/50">{fakeCallName.slice(0, 1)}</div>
-            <p className="text-4xl font-semibold">{fakeCallName}</p>
-            <p className="mt-2 text-sm uppercase tracking-[0.3em] text-slate-400">Calling...</p>
-            <div className="mt-10 flex gap-4">
-              <button type="button" onClick={handleFakeCallEnd} className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-500/30">X</button>
-              <button type="button" onClick={handleFakeCallEnd} className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30">✓</button>
+          <div className="relative flex min-h-[440px] flex-col items-center justify-center overflow-hidden px-6 py-7 text-center">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.03),transparent_35%),linear-gradient(180deg,#10141d_0%,#1a2233_100%)]" />
+
+            <div className="relative z-10 flex w-full max-w-[340px] flex-col items-center">
+              <div className="mb-5 flex h-28 w-28 items-center justify-center rounded-full bg-white/8 text-4xl font-semibold shadow-[0_0_0_18px_rgba(255,255,255,0.03)] ring-1 ring-white/10">{fakeCallName.slice(0, 1)}</div>
+              <p className="text-4xl font-semibold tracking-tight">{fakeCallName}</p>
+              <p className="mt-2 text-sm uppercase tracking-[0.3em] text-slate-300">Incoming call</p>
+              <p className="mt-3 text-sm text-slate-400">+91 98765 43210</p>
+
+              <div className="mt-8 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-[11px] text-slate-200">
+                <div>
+                  <p className="uppercase tracking-[0.22em] text-slate-400">Call</p>
+                  <p className="mt-1 font-medium text-white">Connected</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  <span className="text-slate-300">Active</span>
+                </div>
+              </div>
+
+              <div className="mt-10 flex w-full justify-center gap-8">
+                <button type="button" onClick={handleFakeCallEnd} className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-2xl font-semibold text-white shadow-[0_12px_30px_rgba(244,63,94,0.45)]">×</button>
+                <button type="button" onClick={handleFakeCallEnd} className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-2xl font-semibold text-white shadow-[0_12px_30px_rgba(16,185,129,0.45)]">✓</button>
+              </div>
             </div>
           </div>
         </div>
@@ -937,16 +1313,31 @@ function App() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {[
-          { title: 'Profile', description: 'Manage your account details and emergency identity.', icon: <UserRound className="h-5 w-5" /> },
-          { title: 'Emergency contacts', description: 'Review contact selection and primary contacts.', icon: <Users className="h-5 w-5" /> },
-          { title: 'Location permissions', description: 'Control how your live location is shared.', icon: <MapPinned className="h-5 w-5" /> },
-          { title: 'Notification preferences', description: 'Update SMS, email, and in-app alert settings.', icon: <Bell className="h-5 w-5" /> },
-          { title: 'Privacy settings', description: 'Control who can see your data and route history.', icon: <Shield className="h-5 w-5" /> },
-          { title: 'Security', description: 'Enable two-factor verification and device trust.', icon: <ShieldCheck className="h-5 w-5" /> },
-          { title: 'Help & Support', description: 'Contact support and review safety guidance.', icon: <HelpCircle className="h-5 w-5" /> },
-          { title: 'Logout', description: 'End your current session securely.', icon: <Moon className="h-5 w-5" /> },
+          { id: 'profile', title: 'Profile', description: 'Manage your account details and emergency identity.', icon: <UserRound className="h-5 w-5" /> },
+          { id: 'contacts', title: 'Emergency contacts', description: 'Review contact selection and primary contacts.', icon: <Users className="h-5 w-5" /> },
+          { id: 'location', title: 'Location permissions', description: 'Control how your live location is shared.', icon: <MapPinned className="h-5 w-5" /> },
+          { id: 'notifications', title: 'Notification preferences', description: 'Update SMS, email, and in-app alert settings.', icon: <Bell className="h-5 w-5" /> },
+          { id: 'privacy', title: 'Privacy settings', description: 'Control who can see your data and route history.', icon: <Shield className="h-5 w-5" /> },
+          { id: 'security', title: 'Security', description: 'Enable two-factor verification and device trust.', icon: <ShieldCheck className="h-5 w-5" /> },
+          { id: 'help', title: 'Help & Support', description: 'Contact support and review safety guidance.', icon: <HelpCircle className="h-5 w-5" /> },
+          { id: 'logout', title: 'Logout', description: 'End your current session securely.', icon: <Moon className="h-5 w-5" /> },
         ].map((item) => (
-          <button key={item.title} type="button" className="safe-card flex items-center justify-between rounded-[28px] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg">
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => {
+              if (item.id === 'contacts') {
+                setCurrentView('contacts')
+              } else if (item.id === 'help') {
+                setCurrentView('help')
+              } else if (item.id === 'logout') {
+                setIsLoggedIn(false)
+              } else {
+                alert(`⚙️ ${item.title}\n\nThis feature is under development. Coming soon!`)
+              }
+            }}
+            className="safe-card flex items-center justify-between rounded-[28px] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg hover:border-indigo-300"
+          >
             <div className="flex items-center gap-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">{item.icon}</div>
               <div>
@@ -988,7 +1379,7 @@ function App() {
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-lg font-semibold">SafeCircle</p>
+                <p className="text-lg font-semibold">SafeX</p>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Safety app</p>
               </div>
             </div>
@@ -1013,27 +1404,11 @@ function App() {
             </div>
           </aside>
 
-          <main className="pb-24 lg:pb-6">{pageMap[currentView]}</main>
+          <main className="pb-6">{pageMap[currentView]}</main>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/90 px-3 py-2 shadow-[0_-8px_20px_rgba(15,23,42,0.06)] backdrop-blur-md lg:hidden">
-          <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
-            {['dashboard', 'location', 'help', 'settings'].map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCurrentView(id)}
-                className={`rounded-2xl px-2 py-2 text-center text-[11px] font-medium ${currentView === id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-              >
-                {id === 'dashboard' ? 'Home' : id === 'location' ? 'Location' : id === 'help' ? 'Help' : 'Settings'}
-              </button>
-            ))}
-            <button type="button" onClick={() => setCurrentView('dashboard')} className="rounded-2xl bg-rose-600 px-2 py-2 text-[11px] font-semibold text-white shadow-lg shadow-rose-600/30">SOS</button>
-          </div>
-        </div>
-
-        <footer className="pb-20 pt-6 text-center text-xs text-slate-500 lg:pb-4">
-          © 2026 SafeCircle. Made by codeSerlox. Human-made safety platform for fast, reliable protection.
+        <footer className="pt-6 text-center text-xs text-slate-500">
+          © 2026 SafeX created by Team CodeSherlox.
         </footer>
       </div>
     </div>
