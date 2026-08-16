@@ -123,7 +123,7 @@ safex/
 
 ```bash
 # Clone the repository
-git clone https://github.com/mansiS09/Safex.project.git
+git clone https://suhanimaurya05.github.io/women-safety/
 cd safex
 
 # Install dependencies
@@ -133,7 +133,7 @@ npm install
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`
+
 
 ## Development
 
