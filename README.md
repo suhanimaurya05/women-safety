@@ -124,7 +124,7 @@ safex/
 ```bash
 # Clone the repository
 git clone https://suhanimaurya05.github.io/women-safety/
-cd safex
+cd women-safety
 
 # Install dependencies
 npm install
